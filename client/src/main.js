@@ -4,11 +4,14 @@ import { io } from 'socket.io-client';
 import { Howl, Howler } from 'howler';
 import { Player } from './player.js';
 import { Weapon } from './weapons.js';
+import { ParticleSystem } from './particles.js';
+import { RescueSystem } from './rescueSystem.js';
+import { VoxelCharacter } from './models.js';
 
 // Scene & Sky
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x90afd2, 30, 130);
+scene.background = new THREE.Color(0x0a0a14);
+scene.fog = new THREE.Fog(0x0a0a14, 20, 90);
 
 function createNoiseTexture(base = '#4b5320', noise = '#3c4418', size = 128) {
   const canvas = document.createElement('canvas');
@@ -95,13 +98,60 @@ renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
 // Add Lights
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+const ambientLight = new THREE.AmbientLight(0x4040ff, 0.15); // Dim blue ambient
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.95);
-dirLight.position.set(10, 20, 10);
-dirLight.castShadow = true;
-scene.add(dirLight);
+const moonLight = new THREE.DirectionalLight(0xaaccff, 0.5);
+moonLight.position.set(20, 40, 20);
+moonLight.castShadow = true;
+moonLight.shadow.mapSize.width = 2048;
+moonLight.shadow.mapSize.height = 2048;
+scene.add(moonLight);
+
+function addStreetLamp(x, z) {
+  const group = new THREE.Group();
+  
+  // Pole
+  const poleGeo = new THREE.CylinderGeometry(0.1, 0.15, 6, 8);
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+  const pole = new THREE.Mesh(poleGeo, poleMat);
+  pole.position.y = 3;
+  pole.castShadow = true;
+  group.add(pole);
+
+  // Arm
+  const armGeo = new THREE.BoxGeometry(1.5, 0.1, 0.1);
+  const arm = new THREE.Mesh(armGeo, poleMat);
+  arm.position.set(0.7, 5.8, 0);
+  group.add(arm);
+
+  // Light House
+  const headGeo = new THREE.BoxGeometry(0.5, 0.2, 0.5);
+  const head = new THREE.Mesh(headGeo, poleMat);
+  head.position.set(1.4, 5.7, 0);
+  group.add(head);
+
+  // Actual Light
+  const light = new THREE.PointLight(0xffaa55, 12, 15, 1.5);
+  light.position.set(1.4, 5.5, 0);
+  light.castShadow = true;
+  group.add(light);
+
+  // Visual Bulb
+  const bulbGeo = new THREE.SphereGeometry(0.15, 8, 8);
+  const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffcc88 });
+  const bulb = new THREE.Mesh(bulbGeo, bulbMat);
+  bulb.position.set(1.4, 5.5, 0);
+  group.add(bulb);
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+}
+
+addStreetLamp(15, -15);
+addStreetLamp(-15, -35);
+addStreetLamp(25, -55);
+addStreetLamp(-25, 10);
 
 // Add Ground
 const floorGeo = new THREE.PlaneGeometry(100, 100);
@@ -123,47 +173,73 @@ const floorBody = new CANNON.Body({
 floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
 world.addBody(floorBody);
 
-// Add Cover + Targets
-const boxGeo = new THREE.BoxGeometry(2, 2, 2);
-const boxMat = new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.8 });
-const box = new THREE.Mesh(boxGeo, boxMat);
-box.position.set(0, 1, -5);
-box.castShadow = true;
-box.receiveShadow = true;
-scene.add(box);
-const boxBody = new CANNON.Body({
-  type: CANNON.Body.STATIC,
-  shape: new CANNON.Box(new CANNON.Vec3(1, 1, 1)),
-  position: new CANNON.Vec3(0, 1, -5)
-});
-world.addBody(boxBody);
+const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.9 });
+const windowMaterial = new THREE.MeshStandardMaterial({ color: 0x88ccff, emissive: 0x224466, roughness: 0.2 });
+const shootableObjects = [];
 
-const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x8b919e, roughness: 0.9 });
-function addCoverBox(size, position) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), wallMaterial);
-  mesh.position.copy(position);
+function addHouse(x, z, size = { w: 8, h: 6, d: 8 }) {
+  const group = new THREE.Group();
+  
+  // Base House
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(size.w, size.h, size.d), wallMaterial);
+  mesh.position.y = size.h / 2;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  scene.add(mesh);
+  group.add(mesh);
 
+  // Windows
+  const winGeo = new THREE.BoxGeometry(1.2, 1.2, 0.1);
+  for (let i = 0; i < 4; i++) {
+    const win = new THREE.Mesh(winGeo, windowMaterial);
+    const side = i % 2 === 0 ? 1 : -1;
+    if (i < 2) win.position.set(side * 2, size.h / 2, size.d / 2 + 0.05);
+    else win.position.set(side * 2, size.h / 2, -size.d / 2 - 0.05);
+    group.add(win);
+  }
+
+  // Physics
   const body = new CANNON.Body({
     type: CANNON.Body.STATIC,
-    shape: new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2)),
-    position: new CANNON.Vec3(position.x, position.y, position.z)
+    shape: new CANNON.Box(new CANNON.Vec3(size.w / 2, size.h / 2, size.d / 2)),
+    position: new CANNON.Vec3(x, size.h / 2, z)
   });
   world.addBody(body);
-  return mesh;
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+  shootableObjects.push(mesh);
 }
 
-const coverMeshes = [
-  addCoverBox(new THREE.Vector3(5, 3, 1), new THREE.Vector3(6, 1.5, -10)),
-  addCoverBox(new THREE.Vector3(4, 2.5, 1), new THREE.Vector3(-8, 1.25, -16)),
-  addCoverBox(new THREE.Vector3(1, 4, 8), new THREE.Vector3(12, 2, -25)),
-  addCoverBox(new THREE.Vector3(6, 2, 1), new THREE.Vector3(-2, 1, -24))
-];
+function generateTown() {
+  const gridSize = 30;
+  for (let x = -60; x <= 60; x += gridSize) {
+    for (let z = -80; z <= 20; z += gridSize) {
+      if (Math.abs(x) < 10 && Math.abs(z) < 10) continue; // Keep center clear for rescue zone
+      
+      const offsetX = (Math.random() - 0.5) * 10;
+      const offsetZ = (Math.random() - 0.5) * 10;
+      
+      if (Math.random() > 0.4) {
+        addHouse(x + offsetX, z + offsetZ);
+      } else {
+        // Add some crates/props
+        const propMesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), wallMaterial);
+        propMesh.position.set(x + offsetX, 1, z + offsetZ);
+        scene.add(propMesh);
+        shootableObjects.push(propMesh);
+        
+        const propBody = new CANNON.Body({
+          type: CANNON.Body.STATIC,
+          shape: new CANNON.Box(new CANNON.Vec3(1, 1, 1)),
+          position: new CANNON.Vec3(x + offsetX, 1, z + offsetZ)
+        });
+        world.addBody(propBody);
+      }
+    }
+  }
+}
 
-const shootableObjects = [box];
-shootableObjects.push(...coverMeshes);
+generateTown();
 const remotePlayers = new Map();
 const zombieMeshes = new Map();
 let localSocketId = null;
@@ -232,6 +308,7 @@ let gameStarted = false;
 let isPaused = false;
 let lastFootstepAt = 0;
 let lastGroanAt = 0;
+let lastHeartbeatAt = 0;
 const audioSettings = {
   master: 0.6,
   sfx: 0.9,
@@ -357,6 +434,7 @@ const audio = {
     this.headshot.volume(0.22 * audioSettings.sfx);
     this.groan.volume(0.13 * audioSettings.ambient);
     this.ambient.volume(0.1 * audioSettings.ambient);
+    if (this.heartbeat) this.heartbeat.volume(0.4 * audioSettings.sfx);
   },
   init() {
     if (this.initialized) return;
@@ -366,6 +444,7 @@ const audio = {
     this.hurt = new Howl({ src: [toneDataUri(320, 0.12, 0.25)], volume: 0.22 });
     this.ambient = new Howl({ src: [toneDataUri(58, 0.8, 0.12)], volume: 0.1 });
     this.headshot = new Howl({ src: [toneDataUri(820, 0.07, 0.18)], volume: 0.22 });
+    this.heartbeat = new Howl({ src: [toneDataUri(60, 0.15, 0.4)], volume: 0.4 });
     this.initialized = true;
     this.applySettings();
   }
@@ -494,9 +573,7 @@ function removeZombieMesh(id) {
   if (!zombie) return;
   const idx = shootableObjects.indexOf(zombie.mesh);
   if (idx !== -1) shootableObjects.splice(idx, 1);
-  scene.remove(zombie.mesh);
-  zombie.mesh.geometry.dispose();
-  zombie.mesh.material.dispose();
+  zombie.model.dispose();
   zombieMeshes.delete(id);
 }
 
@@ -549,6 +626,21 @@ function drawThreatHud() {
     radarCtx.fillStyle = dist < 10 ? '#ff6666' : '#ff9a66';
     radarCtx.beginPath();
     radarCtx.arc(px, py, 3, 0, Math.PI * 2);
+    radarCtx.fill();
+  }
+
+  // Draw Survivors on Radar
+  for (const survivor of rescueSystem.survivors) {
+    const dx = survivor.mesh.position.x - playerPos.x;
+    const dz = survivor.mesh.position.z - playerPos.z;
+    const angle = Math.atan2(dx, dz) - yaw;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const r = Math.min(62, (dist / maxRadarDist) * 62);
+    const px = 80 + Math.sin(angle) * r;
+    const py = 80 - Math.cos(angle) * r;
+    radarCtx.fillStyle = '#ffff00'; // Yellow for survivors
+    radarCtx.beginPath();
+    radarCtx.arc(px, py, 4, 0, Math.PI * 2);
     radarCtx.fill();
   }
 
@@ -658,25 +750,21 @@ socket.on('zombies:snapshot', ({ wave: serverWave, zombies }) => {
     let zombie = zombieMeshes.get(zombieState.id);
     if (!zombie) {
       const zombieType = zombieState.type || 'runner';
-      const texture = zombieTextures[zombieType] || zombieTextures.fallback;
-      const tint = zombieType === 'tank' ? 0xb8d0a2 : zombieType === 'spitter' ? 0x9ed9c4 : 0xffffff;
-      const mesh = new THREE.Mesh(
-        new THREE.CapsuleGeometry(0.4, 1.05, 4, 10),
-        new THREE.MeshStandardMaterial({ map: texture, color: tint, roughness: 0.88, metalness: 0.04 })
-      );
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.userData.zombieId = zombieState.id;
-      scene.add(mesh);
-      shootableObjects.push(mesh);
-      zombie = { mesh, phase: Math.random() * Math.PI * 2, type: zombieType, zone: zombieState.zone || 'unknown' };
+      const tint = zombieType === 'tank' ? 0xb8d0a2 : zombieType === 'spitter' ? 0x9ed9c4 : 0x80b05f;
+      const model = new VoxelCharacter(scene, tint, zombieType === 'tank' ? 1.3 : 1.0);
+      model.group.userData.zombieId = zombieState.id;
+      
+      zombie = { 
+        model, 
+        mesh: model.group, // For backward compatibility with raycasting
+        type: zombieType 
+      };
       zombieMeshes.set(zombieState.id, zombie);
+      shootableObjects.push(model.group);
     }
 
-    zombie.type = zombieState.type || zombie.type || 'runner';
-    zombie.zone = zombieState.zone || zombie.zone || 'unknown';
-    zombie.mesh.position.set(zombieState.position.x, zombieState.position.y, zombieState.position.z);
-    zombie.mesh.lookAt(camera.position.x, zombieState.position.y, camera.position.z);
+    zombie.model.group.position.set(zombieState.position.x, zombieState.position.y - 0.5, zombieState.position.z);
+    zombie.model.group.lookAt(camera.position.x, zombie.model.group.position.y, camera.position.z);
   }
 
   for (const [id] of zombieMeshes.entries()) {
@@ -698,12 +786,30 @@ socket.on('wave:started', ({ wave: serverWave }) => {
   setCenterMessage(`Wave ${wave}`, 1200);
   addKillFeed(`Wave ${wave} started`);
   if (audio.initialized) audio.ambient.play();
+
+  // Spawn a survivor at wave start
+  const spawnPos = new THREE.Vector3(
+    (Math.random() - 0.5) * 40,
+    0.6,
+    -20 - Math.random() * 30
+  );
+  rescueSystem.spawnSurvivor(spawnPos);
+  addKillFeed('Survivor detected! Find them!');
 });
 
-socket.on('player:damage', ({ health: serverHealth, byType, zone }) => {
+socket.on('player:damage', ({ health: serverHealth, byType, zone, byId }) => {
   health = serverHealth;
   healthValueEl.textContent = String(health);
   damageFlashUntil = performance.now() + 140;
+  
+  // Trigger attack animation on the zombie that hit us
+  if (byId) {
+    const zombie = zombieMeshes.get(byId);
+    if (zombie && zombie.model) {
+      zombie.model.attack();
+    }
+  }
+
   const typeText = byType ? byType.toUpperCase() : 'ZOMBIE';
   const zoneText = zone ? ` from ${zone.toUpperCase()}` : '';
   addKillFeed(`${typeText} hit you${zoneText}`);
@@ -738,12 +844,30 @@ window.addEventListener('resize', () => {
 // Initialize Player & Clock
 const player = new Player(camera, world);
 const clock = new THREE.Clock();
+const particles = new ParticleSystem(scene);
+const rescueSystem = new RescueSystem(scene, player, particles);
+let rescueScore = 0;
 
 const weapon = new Weapon(camera, scene, {
   onHit: (hit) => {
-    const zombieId = hit.object.userData.zombieId;
+    let obj = hit.object;
+    let zombieId = null;
+    let zombieGroup = null;
+
+    while (obj) {
+      if (obj.userData.zombieId) {
+        zombieId = obj.userData.zombieId;
+        zombieGroup = obj;
+        break;
+      }
+      obj = obj.parent;
+    }
+
     if (zombieId) {
-      const localPointY = hit.object.worldToLocal(hit.point.clone()).y;
+      // Emit Blood
+      particles.emit(hit.point, 0xff0000, 15, 0.08, 0.15);
+      
+      const localPointY = zombieGroup.worldToLocal(hit.point.clone()).y;
       const isHeadshot = localPointY > 0.65;
       if (isHeadshot) {
         flashHitmarkerCritical();
@@ -756,6 +880,8 @@ const weapon = new Weapon(camera, scene, {
       socket.emit('zombie:hit', { zombieId, isHeadshot });
       return;
     }
+    // Emit Sparks
+    particles.emit(hit.point, 0xffff00, 8, 0.04, 0.1);
     flashHitmarker();
     addKillFeed('You hit cover');
   },
@@ -767,10 +893,19 @@ const weapon = new Weapon(camera, scene, {
   },
   onShoot: () => {
     if (audio.initialized) audio.gun.play();
+    player.shake(0.02);
   }
 });
 
-healthValueEl.textContent = String(health);
+const rescueValueEl = document.getElementById('rescueValue');
+rescueValueEl.textContent = '0';
+window.addEventListener('rescue-complete', (e) => {
+  rescueScore = e.detail.count;
+  rescueValueEl.textContent = String(rescueScore);
+  score += 500;
+  setCenterMessage('SURVIVOR RESCUED! +500', 1500);
+});
+
 setCenterMessage('Waiting for server wave...', 1000);
 
 window.addEventListener('mousedown', (event) => {
@@ -921,14 +1056,16 @@ function animate() {
 
   const deltaTime = clock.getDelta();
   world.step(1 / 60, deltaTime, 3);
+  particles.update();
+  rescueSystem.update(deltaTime);
 
   // Update the player movement
   if (gameStarted && isAlive && !isPaused) {
     player.update(deltaTime);
+    weapon.update(deltaTime);
   }
   for (const zombie of zombieMeshes.values()) {
-    zombie.phase += deltaTime * 8;
-    zombie.mesh.rotation.z = Math.sin(zombie.phase) * 0.045;
+    zombie.model.update(deltaTime, true);
   }
 
   const speed2d = Math.hypot(player.body.velocity.x, player.body.velocity.z);
@@ -942,8 +1079,16 @@ function animate() {
     lastGroanAt = performance.now();
   }
 
+  if (gameStarted && isAlive && health < 35 && performance.now() - lastHeartbeatAt > 1000) {
+    if (audio.initialized) audio.heartbeat.play();
+    lastHeartbeatAt = performance.now();
+    player.shake(0.015);
+  }
+
   if (performance.now() < damageFlashUntil) {
-    renderer.domElement.style.filter = 'saturate(0.8) brightness(0.8)';
+    renderer.domElement.style.filter = 'saturate(0.5) brightness(0.6) sepia(0.3) hue-rotate(-20deg)';
+  } else if (health < 35) {
+    renderer.domElement.style.filter = `saturate(0.7) brightness(0.8) sepia(${(35 - health) / 70})`;
   } else {
     renderer.domElement.style.filter = 'none';
   }

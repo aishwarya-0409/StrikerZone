@@ -14,6 +14,10 @@ export class Player {
     this.lookSensitivity = 0.002;
     this.invertY = false;
 
+    this.shakeAmount = 0;
+    this.shakeDecay = 0.9;
+    this.bobPhase = 0;
+
     this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
     this.PI_2 = Math.PI / 2;
 
@@ -104,12 +108,31 @@ export class Player {
       direction.normalize();
       this.body.velocity.x = direction.x * this.speed;
       this.body.velocity.z = direction.z * this.speed;
+      
+      // Bobbing
+      this.bobPhase += deltaTime * 12;
     } else {
       this.body.velocity.x = 0;
       this.body.velocity.z = 0;
     }
 
-    this.camera.position.set(this.body.position.x, this.body.position.y, this.body.position.z);
+    // Apply Camera Shake & Bobbing
+    this.shakeAmount *= this.shakeDecay;
+    const currentShake = this.shakeAmount > 0.001 ? this.shakeAmount : 0;
+    
+    const bobY = Math.sin(this.bobPhase) * 0.04;
+    const shakeX = (Math.random() - 0.5) * currentShake;
+    const shakeY = (Math.random() - 0.5) * currentShake;
+
+    this.camera.position.set(
+      this.body.position.x + shakeX,
+      this.body.position.y + bobY + shakeY,
+      this.body.position.z
+    );
+  }
+
+  shake(amount) {
+    this.shakeAmount += amount;
   }
 
   setLookSettings({ sensitivity, invertY }) {

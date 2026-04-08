@@ -138,7 +138,7 @@ io.on('connection', (socket) => {
     const zombie = zombies.get(zombieId);
     if (!zombie) return;
 
-    zombie.hp -= isHeadshot ? 80 : 38;
+    zombie.hp -= isHeadshot ? 90 : 45;
     if (zombie.hp <= 0) {
       zombies.delete(zombieId);
       io.emit('zombie:dead', { zombieId, by: socket.id, isHeadshot: Boolean(isHeadshot) });
@@ -172,7 +172,7 @@ setInterval(() => {
       clampMap(zombie.position);
     } else if (zombie.attackCooldown <= 0) {
       target.health = Math.max(0, target.health - zombie.damage);
-      io.to(target.id).emit('player:damage', { health: target.health, byType: zombie.type, zone: zombie.zone });
+      io.to(target.id).emit('player:damage', { health: target.health, byType: zombie.type, zone: zombie.zone, byId: zombie.id });
       zombie.attackCooldown = 850;
     }
 
