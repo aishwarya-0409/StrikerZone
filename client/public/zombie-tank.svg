@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="skinT" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#678f5c"/>
+      <stop offset="100%" stop-color="#2e4733"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" fill="url(#skinT)"/>
+  <g opacity="0.35" fill="#1e2a1d">
+    <rect x="0" y="26" width="256" height="18"/>
+    <rect x="0" y="86" width="256" height="12"/>
+    <rect x="0" y="196" width="256" height="16"/>
+  </g>
+  <circle cx="82" cy="84" r="22" fill="#ff9360"/>
+  <circle cx="174" cy="84" r="22" fill="#ff9360"/>
+  <rect x="58" y="138" width="140" height="44" rx="12" fill="#252525"/>
+  <rect x="52" y="178" width="152" height="12" fill="#7a2a1a" opacity="0.9"/>
+</svg>

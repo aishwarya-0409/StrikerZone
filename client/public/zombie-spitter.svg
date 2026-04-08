@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="skinS" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6db082"/>
+      <stop offset="100%" stop-color="#2f5d47"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" fill="url(#skinS)"/>
+  <g opacity="0.3" stroke="#215c3a" stroke-width="6">
+    <path d="M20 40 Q130 120 230 30"/>
+    <path d="M12 170 Q100 120 246 190"/>
+  </g>
+  <circle cx="92" cy="84" r="18" fill="#a4ff5f"/>
+  <circle cx="164" cy="84" r="18" fill="#a4ff5f"/>
+  <ellipse cx="128" cy="160" rx="72" ry="28" fill="#163b2b"/>
+  <circle cx="128" cy="160" r="12" fill="#7eff72"/>
+  <rect x="52" y="184" width="152" height="8" fill="#4ecf72" opacity="0.9"/>
+</svg>

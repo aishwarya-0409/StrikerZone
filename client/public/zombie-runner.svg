@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="skinR" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8fcf66"/>
+      <stop offset="100%" stop-color="#446d30"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" fill="url(#skinR)"/>
+  <g opacity="0.25" stroke="#4a160f" stroke-width="6">
+    <path d="M16 32 L220 220"/>
+    <path d="M30 160 L180 40"/>
+    <path d="M90 220 L230 80"/>
+  </g>
+  <circle cx="90" cy="82" r="20" fill="#ff5f5f"/>
+  <circle cx="166" cy="82" r="20" fill="#ff5f5f"/>
+  <rect x="70" y="146" width="116" height="30" rx="8" fill="#1a1a1a"/>
+  <rect x="64" y="182" width="128" height="8" fill="#6e0f0f" opacity="0.8"/>
+</svg>
